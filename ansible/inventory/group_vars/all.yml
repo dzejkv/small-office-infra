@@ -1,0 +1,31 @@
+# Everything here comes from the policy files, so there is one source of truth.
+repo_root: "{{ playbook_dir }}/.."
+secrets_dir: "{{ repo_root }}/.secrets"
+
+network: "{{ lookup('ansible.builtin.file', repo_root + '/policy/network.yml') | from_yaml }}"
+roster_file: "{{ repo_root }}/policy/people.yml"
+roster: "{{ lookup('ansible.builtin.file', roster_file) | from_yaml }}"
+
+siem_ip: "{{ network.hosts.siem.ip }}"
+pushgateway_url: "http://{{ network.hosts.monitoring.ip }}:9091"
+backup_server_ip: "{{ network.hosts.backup.ip }}"
+
+# Container names of the third-party services (they share a lab host's network).
+lldap_container: "{{ name_prefix }}-lldap"
+rest_server_container: "{{ name_prefix }}-rest-server"
+
+# Retention for backups: what an office of this size typically needs.
+backup_retention:
+  daily: 7
+  weekly: 4
+  monthly: 6
+
+# Which hosts back up what.
+backup_paths:
+  files: /srv/files
+  directory: /backup-src/lldap
+
+# Services started by Ansible run without CAP_NET_ADMIN, like everything the
+# machine starts itself, so no long-running process can re-route around the
+# firewall. The firewall overrides this (group_vars/firewall.yml).
+drop_caps: "setpriv --bounding-set -net_admin --inh-caps -net_admin --"

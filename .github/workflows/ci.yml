@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.17.1"
+      - name: Install Ansible
+        run: pipx install --include-deps ansible-core==2.21.6 && ansible-galaxy collection install community.docker
+      - name: Lint
+        run: make lint
+
+  lab:
+    # Builds the whole office, runs every test, then tears it down.
+    needs: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.17.1"
+          terraform_wrapper: false
+      - name: Install Ansible
+        run: pipx install --include-deps ansible-core==2.21.6 && ansible-galaxy collection install community.docker
+      - name: Build the office
+        run: make up
+      - name: Test
+        run: make test
+      - name: Attack demo
+        run: make demo
+      - name: Firewall and SIEM logs on failure
+        if: failure()
+        run: |
+          docker ps -a
+          docker exec kestrel-fw nft list ruleset || true
+          docker logs --tail 100 kestrel-wazuh || true
+      - name: Tear down
+        if: always()
+        run: make down

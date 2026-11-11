@@ -1,0 +1,26 @@
+#!/bin/sh
+# Managed by Ansible. Nightly backup of {{ backup_paths[inventory_hostname] }} to the backup server.
+# Reports to Prometheus (via Pushgateway) and to the SIEM (via syslog).
+set -u
+. /etc/office-backup/env
+
+start=$(date +%s)
+if restic backup --host "$BACKUP_HOST" --tag scheduled "$BACKUP_PATH" >>/var/log/office-backup.log 2>&1; then
+  ok=1
+  logger -t office-backup "backup succeeded for $BACKUP_HOST"
+else
+  ok=0
+  logger -t office-backup "backup failed for $BACKUP_HOST (see /var/log/office-backup.log)"
+fi
+end=$(date +%s)
+
+# POST keeps metrics that are not sent, so the last *successful* time survives a failure.
+{
+  echo "office_backup_last_run_timestamp_seconds $end"
+  echo "office_backup_last_status $ok"
+  echo "office_backup_duration_seconds $((end - start))"
+  [ "$ok" = 1 ] && echo "office_backup_last_success_timestamp_seconds $end"
+} | curl -s -m 10 --data-binary @- "$PUSHGATEWAY/metrics/job/backup/instance/$BACKUP_HOST" \
+  || logger -t office-backup "could not report metrics to $PUSHGATEWAY"
+
+[ "$ok" = 1 ]

@@ -1,0 +1,2 @@
+# The firewall is the router: it keeps CAP_NET_ADMIN.
+drop_caps: ""

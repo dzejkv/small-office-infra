@@ -1,0 +1,19 @@
+- name: Forward all logs to the SIEM
+  ansible.builtin.copy:
+    dest: /etc/rsyslog.d/50-siem.conf
+    mode: "0644"
+    content: |
+      # Managed by Ansible. Everything goes to Wazuh on {{ siem_ip }} (UDP 514).
+      # Disk-assisted queue so logs survive a short SIEM outage.
+      *.* action(type="omfwd" target="{{ siem_ip }}" port="514" protocol="udp"
+                 template="RSYSLOG_TraditionalForwardFormat"
+                 queue.type="LinkedList" queue.size="10000" action.resumeRetryCount="-1")
+  register: fwd
+
+- name: Restart rsyslog
+  ansible.builtin.shell: |
+    pkill -x rsyslogd || true
+    sleep 1
+    rm -f /var/run/rsyslogd.pid
+    {{ drop_caps }} rsyslogd
+  when: fwd.changed

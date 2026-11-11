@@ -1,0 +1,19 @@
+# Generated secrets and state: never commit
+.secrets/
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl.bak
+crash.log
+ansible/inventory/hosts.yml
+*.retry
+
+# Python (test runner)
+.venv/
+__pycache__/
+.pytest_cache/
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/

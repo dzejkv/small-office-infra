@@ -1,0 +1,66 @@
+# Configure the whole office. Safe to run again at any time.
+#   ansible-playbook site.yml
+
+- name: Firewall policy
+  hosts: firewall
+  gather_facts: false
+  roles: [firewall]
+
+- name: Central logging to the SIEM
+  hosts: all:!siem:!controller
+  gather_facts: false
+  roles:
+    - role: syslog_forward
+      when: enable_siem | bool
+
+- name: Directory and accounts from the staff roster
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles: [directory]
+
+- name: IT admin jump host
+  hosts: admin
+  gather_facts: false
+  roles: [admin_jumphost]
+
+- name: SSH for administration (key only)
+  hosts: files:zone_staff
+  gather_facts: false
+  roles: [ssh_server]
+
+- name: File server shares
+  hosts: files
+  gather_facts: false
+  roles: [fileserver]
+
+- name: Backup server (append-only) and retention
+  hosts: backup
+  gather_facts: false
+  roles: [backup_server]
+
+- name: Backup clients
+  hosts: files:directory
+  gather_facts: false
+  roles: [backup_client]
+
+- name: Services are answering
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Wait for Grafana
+      ansible.builtin.uri:
+        url: http://127.0.0.1:3000/api/health
+      register: grafana
+      until: grafana.status == 200
+      retries: 30
+      delay: 2
+
+    - name: Wait for Prometheus
+      ansible.builtin.uri:
+        url: http://127.0.0.1:9090/-/ready
+      register: prom
+      until: prom.status == 200
+      retries: 30
+      delay: 2

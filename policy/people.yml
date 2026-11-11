@@ -1,0 +1,45 @@
+# Staff roster for Kestrel Studio (fictional people, fictional company).
+#
+# This is how accounts are managed: HR changes go here, then `make users`.
+#   joiner -> add an entry
+#   mover  -> change their groups
+#   leaver -> set `status: left` (account is deleted on the next run)
+#
+# Groups give access. Nobody gets a group "just in case".
+
+domain: kestrel.test
+
+groups:
+  all-staff:   "Everyone currently employed"
+  leadership:  "Studio directors"
+  design:      "Architects and designers"
+  projects:    "Project managers"
+  finance:     "Finance and HR, access to payroll share"
+  office:      "Office management and reception"
+  it-admins:   "IT administrators, admin role in Grafana"
+
+people:
+  - { uid: mholt,     first: Maren,  last: Holt,     groups: [leadership] }
+  - { uid: treyes,    first: Tomas,  last: Reyes,    groups: [leadership, finance] }
+  - { uid: atanaka,   first: Aiko,   last: Tanaka,   groups: [design] }
+  - { uid: fbrandt,   first: Felix,  last: Brandt,   groups: [design] }
+  - { uid: nhaddad,   first: Noor,   last: Haddad,   groups: [design] }
+  - { uid: lbyrne,    first: Liam,   last: Byrne,    groups: [design] }
+  - { uid: smarin,    first: Sofia,  last: Marin,    groups: [design] }
+  - { uid: dokafor,   first: Daniel, last: Okafor,   groups: [design] }
+  - { uid: epetrova,  first: Elena,  last: Petrova,  groups: [design] }
+  - { uid: jlind,     first: Jonas,  last: Lind,     groups: [design] }
+  - { uid: praman,    first: Priya,  last: Raman,    groups: [design] }
+  - { uid: mkowal,    first: Marta,  last: Kowal,    groups: [projects] }
+  - { uid: osaleh,    first: Omar,   last: Saleh,    groups: [projects] }
+  - { uid: hberg,     first: Hanna,  last: Berg,     groups: [projects] }
+  - { uid: gmwangi,   first: Grace,  last: Mwangi,   groups: [finance] }
+  - { uid: lferreira, first: Lucas,  last: Ferreira, groups: [finance] }
+  - { uid: inovak,    first: Ida,    last: Novak,    groups: [office] }
+  - { uid: bcarter,   first: Ben,    last: Carter,   groups: [office] }
+  - { uid: riyer,     first: Ravi,   last: Iyer,     groups: [it-admins] }
+  - { uid: lfischer,  first: Lena,   last: Fischer,  groups: [it-admins] }
+
+# Non-human accounts. Each has one job and the least access that job needs.
+service_accounts:
+  - { uid: svc-grafana, name: "Grafana LDAP bind (read-only)", groups: [lldap_strict_readonly] }

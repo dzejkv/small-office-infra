@@ -1,0 +1,31 @@
+- name: Render the firewall policy (checked with nft before it is installed)
+  ansible.builtin.template:
+    src: office.nft.j2
+    dest: /etc/nftables.d/office.nft
+    mode: "0644"
+    validate: nft -c -f %s
+  register: rules
+
+- name: Load the policy atomically (one transaction, no window without rules)
+  ansible.builtin.command: nft -f /etc/nftables.d/office.nft
+  when: rules.changed
+
+- name: Configure packet logging
+  ansible.builtin.template:
+    src: ulogd.conf.j2
+    dest: /etc/ulogd.conf
+    mode: "0644"
+  register: ulogd_conf
+
+- name: Check whether ulogd is running
+  ansible.builtin.command: pgrep -x ulogd
+  register: ulogd_running
+  changed_when: false
+  failed_when: false
+
+- name: (Re)start ulogd
+  ansible.builtin.shell: |
+    pkill -x ulogd || true
+    sleep 1
+    ulogd -d -c /etc/ulogd.conf
+  when: ulogd_conf.changed or ulogd_running.rc != 0

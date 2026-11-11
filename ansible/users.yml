@@ -1,0 +1,8 @@
+# Apply the staff roster only (joiners, movers, leavers). Fast to run after HR changes.
+#   ansible-playbook users.yml
+#   ansible-playbook users.yml -e roster_file=/path/to/other/people.yml
+- name: Directory and accounts from the staff roster
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles: [directory]

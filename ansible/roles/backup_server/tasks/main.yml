@@ -1,0 +1,58 @@
+# The backup server runs restic's rest-server in append-only mode:
+# a client can add snapshots but cannot delete or change existing ones, so a
+# compromised server (or ransomware on it) cannot destroy its own backups.
+# Pruning old snapshots happens here, inside the backup segment, never on clients.
+
+- name: One login per backup client (bcrypt, stored by rest-server)
+  ansible.builtin.command: >-
+    docker exec -i {{ rest_server_container }} sh -c
+    'create_user {{ item }} "$(cat)"'
+  args:
+    stdin: "{{ lookup('ansible.builtin.password', secrets_dir ~ '/backup/' ~ item ~ '-http', length=32, chars=['ascii_letters', 'digits']) }}"
+  loop: "{{ backup_paths.keys() | list }}"
+  delegate_to: localhost
+  changed_when: false
+  no_log: true
+
+- name: Folder for repository keys (needed to prune)
+  ansible.builtin.file:
+    path: /etc/office-backup
+    state: directory
+    mode: "0700"
+
+- name: Repository keys for each client
+  ansible.builtin.copy:
+    dest: "/etc/office-backup/{{ item }}.repo-pass"
+    content: "{{ lookup('ansible.builtin.password', secrets_dir ~ '/backup/' ~ item ~ '-repo', length=40, chars=['ascii_letters', 'digits']) }}"
+    mode: "0400"
+  loop: "{{ backup_paths.keys() | list }}"
+  no_log: true
+
+- name: Retention job
+  ansible.builtin.copy:
+    dest: /usr/local/bin/office-backup-prune
+    mode: "0755"
+    content: |
+      #!/bin/sh
+      # Managed by Ansible. Applies the retention policy to every client repository.
+      set -u
+      rc=0
+      for client in {{ backup_paths.keys() | join(' ') }}; do
+        repo="/data/$client"
+        [ -f "$repo/config" ] || continue
+        if restic -r "$repo" --password-file "/etc/office-backup/$client.repo-pass" forget --prune \
+             --keep-daily {{ backup_retention.daily }} --keep-weekly {{ backup_retention.weekly }} \
+             --keep-monthly {{ backup_retention.monthly }} >>/var/log/office-backup-prune.log 2>&1; then
+          logger -t office-backup "prune succeeded for $client"
+        else
+          logger -t office-backup "prune failed for $client"; rc=1
+        fi
+      done
+      exit $rc
+
+- name: Run retention every Sunday at 03:00
+  ansible.builtin.lineinfile:
+    path: /etc/crontabs/root
+    line: "0 3 * * 0 /usr/local/bin/office-backup-prune"
+    create: true
+    mode: "0600"

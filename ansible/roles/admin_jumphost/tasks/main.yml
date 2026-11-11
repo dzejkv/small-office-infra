@@ -1,0 +1,29 @@
+# The IT admin's jump host in the mgmt segment. Its SSH key is the only way
+# onto servers and workstations; password logins are disabled everywhere.
+
+- name: Admin SSH key
+  ansible.builtin.command: ssh-keygen -t ed25519 -N "" -C "itadmin@kestrel" -f /root/.ssh/id_ed25519
+  args:
+    creates: /root/.ssh/id_ed25519
+
+- name: Read the public key
+  ansible.builtin.slurp:
+    src: /root/.ssh/id_ed25519.pub
+  register: admin_pub
+
+- name: Keep a copy of the public key for the servers to trust
+  ansible.builtin.copy:
+    dest: "{{ secrets_dir }}/itadmin.pub"
+    content: "{{ admin_pub.content | b64decode }}"
+    mode: "0644"
+  delegate_to: localhost
+
+- name: SSH client defaults
+  ansible.builtin.copy:
+    dest: /root/.ssh/config
+    mode: "0600"
+    content: |
+      Host *
+        User itadmin
+        StrictHostKeyChecking accept-new
+        ConnectTimeout 5

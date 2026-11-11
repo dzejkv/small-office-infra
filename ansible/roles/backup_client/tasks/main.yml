@@ -1,0 +1,52 @@
+- name: Backup settings folder
+  ansible.builtin.file:
+    path: /etc/office-backup
+    state: directory
+    mode: "0700"
+
+- name: Repository key (encrypts the backup; the backup server never sees it in use)
+  ansible.builtin.copy:
+    dest: /etc/office-backup/repo-pass
+    content: "{{ lookup('ansible.builtin.password', secrets_dir ~ '/backup/' ~ inventory_hostname ~ '-repo', length=40, chars=['ascii_letters', 'digits']) }}"
+    mode: "0400"
+  no_log: true
+
+- name: Connection settings
+  ansible.builtin.copy:
+    dest: /etc/office-backup/env
+    mode: "0400"
+    content: |
+      export RESTIC_REPOSITORY="rest:http://{{ inventory_hostname }}:{{ lookup('ansible.builtin.password', secrets_dir ~ '/backup/' ~ inventory_hostname ~ '-http', length=32, chars=['ascii_letters', 'digits']) }}@{{ backup_server_ip }}:8000/{{ inventory_hostname }}/"
+      export RESTIC_PASSWORD_FILE=/etc/office-backup/repo-pass
+      export RESTIC_CACHE_DIR=/var/cache/restic
+      BACKUP_HOST={{ inventory_hostname }}
+      BACKUP_PATH={{ backup_paths[inventory_hostname] }}
+      PUSHGATEWAY={{ pushgateway_url }}
+  no_log: true
+
+- name: Backup script
+  ansible.builtin.template:
+    src: office-backup.sh.j2
+    dest: /usr/local/bin/office-backup
+    mode: "0755"
+
+- name: Create the repository on first run
+  ansible.builtin.shell: |
+    . /etc/office-backup/env
+    # Fail fast if the backup server is unreachable (restic otherwise retries for minutes).
+    nc -z -w 5 {{ backup_server_ip }} 8000 || { echo "backup server unreachable"; exit 1; }
+    timeout 60 restic cat config >/dev/null 2>&1 && exit 0
+    timeout 60 restic init && echo created
+  register: init
+  changed_when: "'created' in init.stdout"
+
+- name: Nightly at 01:15
+  ansible.builtin.lineinfile:
+    path: /etc/crontabs/root
+    line: "15 1 * * * /usr/local/bin/office-backup"
+    create: true
+    mode: "0600"
+
+- name: First backup now, so monitoring has a baseline
+  ansible.builtin.command: /usr/local/bin/office-backup
+  when: init.changed

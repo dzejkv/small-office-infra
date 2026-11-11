@@ -1,0 +1,27 @@
+# Department shares with some fictional working documents, so backups and
+# restores have something real-looking to protect.
+
+- name: Share folders, one per group
+  ansible.builtin.file:
+    path: "/srv/files/{{ item }}"
+    state: directory
+    mode: "0770"
+  loop: "{{ roster.groups.keys() | list }}"
+
+- name: Sample documents (fictional)
+  ansible.builtin.copy:
+    dest: "/srv/files/{{ item.path }}"
+    content: "{{ item.text }}\n"
+    mode: "0660"
+    force: false
+  loop:
+    - { path: all-staff/office-handbook.txt,    text: "Kestrel Studio office handbook. Opening hours 08:00-18:00. Report IT issues to it@kestrel.test." }
+    - { path: all-staff/it-acceptable-use.txt,  text: "Use only studio-approved software. Lock your screen. Never share passwords." }
+    - { path: design/harbour-library-brief.txt, text: "Project brief: Harbour Library extension (fictional client). Concept due end of month." }
+    - { path: design/material-palette.txt,      text: "Timber cladding, recycled brick, low-iron glazing." }
+    - { path: projects/schedule-2026.txt,       text: "Q1 concept, Q2 planning submission, Q3 tender, Q4 construction start." }
+    - { path: finance/payroll-2026-10.txt,      text: "CONFIDENTIAL (fictional): payroll summary for October 2026." }
+    - { path: leadership/strategy-notes.txt,    text: "Grow to 25 staff by 2028. Open a second studio." }
+    - { path: office/supplier-contacts.txt,     text: "Cleaning, coffee, printer maintenance (fictional suppliers)." }
+    - { path: it-admins/asset-register.csv,     text: "asset,owner,location\nws-01,atanaka,studio\nws-02,mkowal,studio\nws-03,gmwangi,office" }
+  loop_control: { label: "{{ item.path }}" }

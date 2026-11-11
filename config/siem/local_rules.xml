@@ -1,0 +1,53 @@
+<!--
+  Kestrel Studio detection rules (IDs 100100-100199).
+  Built-in Wazuh rules already cover SSH: 5710 (invalid user), 5712 (brute force).
+  See docs/runbooks/siem-alert-triage.md for what to do when these fire.
+-->
+<group name="office,firewall,">
+
+  <!-- Every blocked connection. Low level: useful for investigations, not for paging. -->
+  <rule id="100100" level="3">
+    <decoded_as>office-fw</decoded_as>
+    <description>Firewall blocked $(protocol) from $(srczone) $(srcip) to $(dstip):$(dstport)</description>
+  </rule>
+
+  <!-- A guest device trying to reach anything inside the office is never legitimate. -->
+  <rule id="100101" level="8">
+    <if_sid>100100</if_sid>
+    <field name="srczone">^guest$</field>
+    <dstip>10.20.0.0/16</dstip>
+    <description>Guest network tried to reach internal host $(dstip):$(dstport)</description>
+    <mitre>
+      <id>T1046</id>
+    </mitre>
+    <group>guest_isolation,</group>
+  </rule>
+
+  <!-- Many blocked connections from one source: someone is mapping the network. -->
+  <rule id="100102" level="10" frequency="10" timeframe="60">
+    <if_matched_sid>100100</if_matched_sid>
+    <same_srcip />
+    <description>Possible network scan: 10+ blocked connections from $(srcip) in 60s</description>
+    <mitre>
+      <id>T1046</id>
+    </mitre>
+    <group>network_scan,</group>
+  </rule>
+
+</group>
+
+<group name="office,backup,">
+
+  <rule id="100110" level="3">
+    <program_name>^office-backup</program_name>
+    <match>backup succeeded</match>
+    <description>Backup succeeded</description>
+  </rule>
+
+  <rule id="100111" level="9">
+    <program_name>^office-backup</program_name>
+    <match>backup failed</match>
+    <description>Backup FAILED on a server</description>
+  </rule>
+
+</group>

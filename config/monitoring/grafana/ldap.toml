@@ -1,0 +1,27 @@
+# Grafana logins go through the office directory. Nobody has a local Grafana
+# account except the break-glass `admin` (password in .secrets/, for emergencies).
+[[servers]]
+host = "10.20.20.10"
+port = 3890
+use_ssl = false
+start_tls = false
+bind_dn = "uid=svc-grafana,ou=people,dc=kestrel,dc=test"
+bind_password = "$__env{LDAP_BIND_PASSWORD}"
+search_filter = "(uid=%s)"
+search_base_dns = ["ou=people,dc=kestrel,dc=test"]
+
+[servers.attributes]
+username = "uid"
+name = "givenName"
+surname = "sn"
+email = "mail"
+member_of = "memberOf"
+
+# IT admins manage Grafana; everyone else in the office can view dashboards.
+[[servers.group_mappings]]
+group_dn = "cn=it-admins,ou=groups,dc=kestrel,dc=test"
+org_role = "Admin"
+
+[[servers.group_mappings]]
+group_dn = "cn=all-staff,ou=groups,dc=kestrel,dc=test"
+org_role = "Viewer"

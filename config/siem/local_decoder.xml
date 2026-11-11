@@ -1,0 +1,24 @@
+<!--
+  Decoder for the office firewall.
+
+  The firewall logs every blocked packet with nftables (NFLOG) -> ulogd -> syslog,
+  and rsyslog forwards it here. A line looks like:
+
+    fw ulogd[42]: FW-DROP src=guest IN=eth5 OUT=eth2 MAC=... SRC=10.20.50.11 DST=10.20.20.20 ... PROTO=TCP SPT=40112 DPT=22 ...
+-->
+<decoder name="office-fw">
+  <program_name>^ulogd</program_name>
+  <prematch>^FW-DROP </prematch>
+</decoder>
+
+<decoder name="office-fw-fields">
+  <parent>office-fw</parent>
+  <regex>^FW-DROP src=(\S+) \.+SRC=(\S+) DST=(\S+) \.+PROTO=(\S+) \.*DPT=(\d+)</regex>
+  <order>srczone, srcip, dstip, protocol, dstport</order>
+</decoder>
+
+<decoder name="office-fw-fields-noport">
+  <parent>office-fw</parent>
+  <regex>^FW-DROP src=(\S+) \.+SRC=(\S+) DST=(\S+) \.+PROTO=(\S+)</regex>
+  <order>srczone, srcip, dstip, protocol</order>
+</decoder>

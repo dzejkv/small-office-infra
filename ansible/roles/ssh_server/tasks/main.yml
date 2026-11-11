@@ -1,0 +1,55 @@
+- name: Host keys
+  ansible.builtin.command: ssh-keygen -A
+  args:
+    creates: /etc/ssh/ssh_host_ed25519_key
+
+- name: Admin account (key login only; "*" means no password can ever work)
+  ansible.builtin.shell: |
+    id itadmin >/dev/null 2>&1 || adduser -D -s /bin/sh itadmin
+    echo 'itadmin:*' | chpasswd -e
+  changed_when: false
+
+- name: SSH folder for the admin account
+  ansible.builtin.file:
+    path: /home/itadmin/.ssh
+    state: directory
+    owner: itadmin
+    mode: "0700"
+
+- name: Trust the jump host's key
+  ansible.builtin.copy:
+    src: "{{ secrets_dir }}/itadmin.pub"
+    dest: /home/itadmin/.ssh/authorized_keys
+    owner: itadmin
+    mode: "0600"
+
+- name: Hardened sshd settings
+  ansible.builtin.copy:
+    dest: /etc/ssh/sshd_config.d/office.conf
+    mode: "0644"
+    validate: /usr/sbin/sshd -t -f %s
+    content: |
+      # Managed by Ansible
+      PasswordAuthentication no
+      KbdInteractiveAuthentication no
+      PermitRootLogin no
+      AllowUsers itadmin
+      MaxAuthTries 3
+      LoginGraceTime 20
+      LogLevel VERBOSE
+      SyslogFacility AUTH
+  register: sshd_conf
+
+- name: Check whether sshd is running
+  ansible.builtin.command: pgrep -x sshd
+  register: sshd_running
+  changed_when: false
+  failed_when: false
+
+- name: Start sshd
+  ansible.builtin.command: "{{ drop_caps }} /usr/sbin/sshd"
+  when: sshd_running.rc != 0
+
+- name: Reload sshd
+  ansible.builtin.command: pkill -HUP -x sshd
+  when: sshd_running.rc == 0 and sshd_conf.changed

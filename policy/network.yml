@@ -1,0 +1,56 @@
+# Network policy for Kestrel Studio (fictional).
+#
+# This file is the single source of truth for segmentation:
+#   - Ansible renders the firewall rules from it (ansible/roles/firewall)
+#   - the tests check every zone pair against it (tests/test_network.py)
+# Anything not listed under `flows` is blocked and logged.
+
+zones:
+  staff:
+    subnet: 10.20.10.0/24
+    description: Employee workstations
+  servers:
+    subnet: 10.20.20.0/24
+    description: Directory and file server
+  backup:
+    subnet: 10.20.30.0/24
+    description: Backup storage, reachable only by backup clients
+  mgmt:
+    subnet: 10.20.40.0/24
+    description: IT admin jump host, monitoring, SIEM
+  guest:
+    subnet: 10.20.50.0/24
+    description: Visitor Wi-Fi, internet only
+  internet:
+    subnet: 0.0.0.0/0
+    description: Anything outside 10.20.0.0/16 (NAT through the firewall)
+
+# The address used for the whole office, so "internet" means "not this".
+office_supernet: 10.20.0.0/16
+
+flows:
+  - { from: staff,   to: servers,  ports: [3890/tcp],                   why: "Directory lookups and logins" }
+  - { from: staff,   to: internet, ports: [80/tcp, 443/tcp, 53/udp],    why: "Web browsing" }
+  - { from: staff,   to: mgmt,     ports: [514/udp],                    why: "Workstation logs to the SIEM" }
+  - { from: guest,   to: internet, ports: [80/tcp, 443/tcp, 53/udp],    why: "Guest internet access only" }
+  - { from: servers, to: backup,   ports: [8000/tcp],                   why: "Nightly backups (append-only)" }
+  - { from: servers, to: mgmt,     ports: [514/udp, 9091/tcp],          why: "Logs to the SIEM, backup metrics" }
+  - { from: backup,  to: mgmt,     ports: [514/udp],                    why: "Backup server logs to the SIEM" }
+  - { from: mgmt,    to: servers,  ports: [22/tcp, 3890/tcp, 17170/tcp], why: "Administration, health checks, Grafana logins" }
+  - { from: mgmt,    to: backup,   ports: [8000/tcp],                   why: "Backup server health checks" }
+  - { from: mgmt,    to: staff,    ports: [22/tcp],                     why: "Workstation support" }
+  - { from: mgmt,    to: internet, ports: [443/tcp, 53/udp],            why: "Software updates" }
+
+# Hosts, by zone. Terraform creates them with these addresses.
+hosts:
+  fw:         { role: firewall }
+  ws-01:      { zone: staff,   ip: 10.20.10.11 }
+  ws-02:      { zone: staff,   ip: 10.20.10.12 }
+  ws-03:      { zone: staff,   ip: 10.20.10.13 }
+  directory:  { zone: servers, ip: 10.20.20.10 }
+  files:      { zone: servers, ip: 10.20.20.20 }
+  backup:     { zone: backup,  ip: 10.20.30.10 }
+  admin:      { zone: mgmt,    ip: 10.20.40.5 }
+  monitoring: { zone: mgmt,    ip: 10.20.40.10 }
+  siem:       { zone: mgmt,    ip: 10.20.40.20 }
+  guest-01:   { zone: guest,   ip: 10.20.50.11 }
